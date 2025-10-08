@@ -76,7 +76,7 @@ void init_simulator (void);
 void shutdown_simulator (void);
 
 // Simulates the hardware until sim.exit is set.
-void sim_loop (void);
+void sim_loop (plat_thread_t *th);
 
 // Call the stepper interrupt until one block is finished
 // (defined in serial.c)

@@ -17,6 +17,7 @@ void platform_terminate();
 plat_thread_t* platform_start_thread(plat_threadfunc_t func);
 void platform_stop_thread(plat_thread_t* thread);
 void platform_kill_thread(plat_thread_t* thread);
+bool platform_thread_alive(plat_thread_t* th);
 
 uint32_t  platform_ns();  //monotonically increasing nanoseconds since program start.
 void platform_sleep(long microsec); //sleep for suggested time in microsec.

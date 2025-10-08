@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "simulator.h"
 #include "eeprom.h"
@@ -80,7 +81,7 @@ void simulate_hardware (bool do_serial)
 }
 
 // Runs the hardware simulator at the desired rate until sim.exit is set
-void sim_loop (void)
+void sim_loop (plat_thread_t *th)
 {
     // a sensible control frame length is yet to be found.
     // the currrent 100ms are a blind guess, assuming some small multiple
@@ -97,6 +98,10 @@ void sim_loop (void)
     uint64_t next_byte_tick = F_CPU;   //wait 1 sec (sim time) before reading IO.
 
     while (sim.exit != exit_OK  ) { //don't quit until idle
+        if (!platform_thread_alive(th)) {
+            assert(false)   ; // thread should not die
+        }
+
         while (sim.masterclock < target_ticks) {
             // only read serial port as fast as the baud rate allows
             bool read_serial = (sim.masterclock >= next_byte_tick);

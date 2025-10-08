@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <conio.h>
 #include <windows.h>
@@ -93,6 +94,15 @@ void platform_kill_thread(plat_thread_t* th)
 {
     th->exit = 1;
     TerminateThread(th->tid, 0);
+}
+
+//check whether thread is still running
+bool platform_thread_alive(plat_thread_t* th)
+{
+    DWORD exitCode;
+    GetExitCodeThread(th->tid, &exitCode);
+
+    return exitCode == STILL_ACTIVE;
 }
 
 //return char if one available.

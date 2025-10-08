@@ -113,6 +113,12 @@ static bool serialSuspendInput (bool suspend)
     return stream_rx_suspend(&rxbuffer, suspend);
 }
 
+static bool serialIsConnected (void)
+{
+    // This is a simulator, so always return true.
+    return true;
+}
+
 static uint16_t serialTxCount(void) {
 
     uint_fast16_t head = txbuffer.head, tail = txbuffer.tail;
@@ -150,7 +156,7 @@ const io_stream_t *serialInit (void)
     mcu_register_irq_handler(uart_interrupt_handler, UART_IRQ);
 
     uart.rx_irq_enable = 1;
-    
+
     return &stream;
 }
 
