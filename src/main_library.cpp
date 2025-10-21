@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QLocalSocket>
 #include "WindowsSerial.h"
+#include <QAtomicInt>
 
 #ifdef __cplusplus
 extern "C"
@@ -16,6 +17,7 @@ extern "C"
 
 arg_vars_t args;
 QLocalSocket* socket_ = nullptr;
+QAtomicInt* stopFlag_;
 
 PLAT_THREAD_FUNC(grbl_main_thread, exit)
 {
@@ -57,12 +59,17 @@ void per_tick()
     if (tick++ > 10000) {
         tick = 0;
         QCoreApplication::processEvents();
+        if (*stopFlag_ == 2) { // 2 == stop requested
+            sim.exit = sim.exit_OK;
+        }
     }
 }
 
 Q_DECL_EXPORT
-void GRBL(QString serverName)
+void GRBL(QString serverName, QAtomicInt* stopFlag)
 {
+    stopFlag_ = stopFlag;
+
     //defaults
     args.step_out_file = stderr;
     args.block_out_file = stdout;
@@ -88,20 +95,30 @@ void GRBL(QString serverName)
     socket_ = new QLocalSocket();
     socket_->connectToServer(serverName);
     if (!socket_->waitForConnected(100)) {
-        qDebug() << "Could not connect to server:" << socket_->errorString();
+        qDebug() << "[IO][GRBL][DLL] Could not connect to server:" << socket_->errorString();
     }
+
+    qDebug() << "[IO][GRBL][DLL] Connected to server, starting simulator.";
 
     init_simulator();
 
     plat_thread_t *th = platform_start_thread(grbl_main_thread);
     if (!th){
+        qDebug() << "[IO][GRBL][DLL] Fatal: Unable to start hardware thread.";
+
         printf("Fatal: Unable to start hardware thread.\n");
         exit(-5);
     }
 
+    qDebug() << "[IO][GRBL][DLL] Starting loop.";
+
     sim_loop(th);
 
     eeprom_close();
+    socket_->disconnectFromServer();
+    platform_kill_thread(th);
+
+    qDebug() << "[IO][GRBL][DLL] Exiting.";
 }
 
 #ifdef __cplusplus
