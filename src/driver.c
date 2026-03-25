@@ -29,6 +29,7 @@
 #include "platform.h"
 
 #include "grbl/hal.h"
+#include "grbl/state_machine.h"
 
 #ifndef SQUARING_ENABLED
 #define SQUARING_ENABLED 0
@@ -39,6 +40,7 @@ static bool probe_invert;
 static uint32_t ticks = 0;
 static delay_t delay = { .ms = 1, .callback = NULL }; // NOTE: initial ms set to 1 for "resetting" systick timer on startup
 static on_execute_realtime_ptr on_execute_realtime;
+extern homing_mode_t homing_mode;
 
 void SysTick_Handler (void);
 void Stepper_IRQHandler (void);
@@ -177,6 +179,21 @@ static limit_signals_t limitsGetState()
     if (settings.limits.invert.mask)
         signals.min.mask ^= settings.limits.invert.mask;
 
+    float print_position[N_AXIS];
+    system_convert_array_steps_to_mpos(print_position, sys.position);
+
+    if (state_get() == STATE_HOMING) {
+        if (homing_mode == HomingMode_Locate) {
+            signals.min.z = print_position[Z_AXIS] >= 0.1f;
+            signals.min.x = print_position[X_AXIS] <= -0.1f;
+            signals.min.y = print_position[Y_AXIS] <= -0.1f;
+        } else {
+            signals.min.z = print_position[Z_AXIS] >= 20.0f;
+            signals.min.x = print_position[X_AXIS] <= -5.0f;
+            signals.min.y = print_position[Y_AXIS] <= -5.0f;
+        }
+    }
+
     return signals;
 }
 
@@ -248,6 +265,16 @@ static void probeConfigureInvertMask (bool is_probe_away, bool probing)
 
   if (is_probe_away)
       probe_invert ^= is_probe_away;
+}
+
+float homingGetFeedrate (axes_signals_t axes, homing_mode_t mode)
+{
+    uint_fast8_t idx = 0;
+
+    if(settings.homing.flags.per_axis_feedrates)
+        idx = ffs(axes.mask) - 1;
+
+    return mode == HomingMode_Locate ? settings.axis[idx].homing_feed_rate : settings.axis[idx].homing_seek_rate;
 }
 
 // Returns the probe connected and triggered pin states.

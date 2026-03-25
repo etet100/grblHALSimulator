@@ -16,6 +16,9 @@ DEFINES += INJECT_BLOCK_BUFFER_SIZE=256
 CONFIG -= debug_and_release
 LIBS += -pthread -lws2_32
 
+QMAKE_CFLAGS += -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -Wno-missing-field-initializers
+QMAKE_CXXFLAGS += -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -Wno-missing-field-initializers
+
 win32 {
     DEFINES += WINDOWS=1
     DEFINES += WIN32
@@ -46,6 +49,7 @@ HEADERS += \
     src/grbl/crossbar.h \
     src/grbl/driver_opts.h \
     src/grbl/driver_opts2.h \
+    src/grbl/encoders.h \
     src/grbl/errors.h \
     src/grbl/gcode.h \
     src/grbl/grbl.h \
@@ -114,6 +118,7 @@ SOURCES += \
     src/grbl/coolant_control.c \
     src/grbl/crc.c \
     src/grbl/crossbar.c \
+    src/grbl/encoders.c \
     src/grbl/errors.c \
     src/grbl/gcode.c \
     src/grbl/grbllib.c \
@@ -136,6 +141,7 @@ SOURCES += \
     src/grbl/override.c \
     src/grbl/pid.c \
     src/grbl/planner.c \
+    src/grbl/probe.c \
     src/grbl/protocol.c \
     src/grbl/regex.c \
     src/grbl/report.c \
@@ -157,9 +163,10 @@ SOURCES += \
     # src/main.c \
     src/main_library.cpp \
     src/mcu.c \
-    src/planner_inject_accessors.c \
     src/platform_windows.c \
     src/serial.c \
     src/simulator.c \
     # src/validator.c \
     # src/validator_driver.c
+
+DESTDIR = $$OUT_PWD/../../gpilot

@@ -4,10 +4,32 @@
 #include "WindowsSerial.h"
 #include <QAtomicInt>
 
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+// #include "grbl/system.h"
+
+void gpilotLockProbeAtCurrentPosition(void) {}
+void gpilotResetProbePosition(void) {}
+void gpilotSetHome(bool abs, double x, double y, double z) {}
+
+void gpilotSetSingleLimit(int axis, double pos) {
+
+}
+void gpilotEstop();
+
+// #define bit(n) (1UL << (n))
+// #define EXEC_RESET              bit(5)
+
+// void gpilotEstop()
+// {
+//     // system_set_exec_state_flag(EXEC_RESET);
+//     // // Alarm_EStop = 10,                           //!< 10
+//     // system_set_exec_alarm(10);
+// }
 
 #include "simulator.h"
 #include "eeprom.h"
@@ -16,7 +38,8 @@ extern "C"
 #include "grbl/grbllib.h"
 
 arg_vars_t args;
-QLocalSocket* socket_ = nullptr;
+QLocalSocket* mainSocket = nullptr;
+QLocalSocket* controlSocket = nullptr;
 QAtomicInt* stopFlag_;
 
 PLAT_THREAD_FUNC(grbl_main_thread, exit)
@@ -35,7 +58,7 @@ void serial_out(uint8_t data)
     buf[len++] = data;
     // print when we get to newline or run out of buffer
     if (data == '\n' || data == '\r' || len >= 127) {
-        socket_->write((const char *)buf, len);
+        mainSocket->write((const char *)buf, len);
         len = 0;
     }
 }
@@ -43,12 +66,53 @@ void serial_out(uint8_t data)
 //return char if one available.
 uint8_t serial_in()
 {
-    if (!socket_->bytesAvailable()) {
+    static QString ctrlBuffer = "";
+    if (controlSocket->bytesAvailable()) {
+        ctrlBuffer += controlSocket->readAll();
+
+        int pos;
+        while ((pos = ctrlBuffer.indexOf("\n")) != -1) {
+            QString line = ctrlBuffer.left(pos).trimmed();
+            ctrlBuffer = ctrlBuffer.mid(pos + 1);
+
+            qDebug() << "[IO][GRBL][DLL] Received:" << line;
+
+            // Process control commands here
+            QJsonDocument doc = QJsonDocument::fromJson(line.toUtf8());
+            if (!doc.isNull() && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QString cmd = obj["cmd"].toString();
+
+                if (cmd == "probe_at_current") {
+                    gpilotLockProbeAtCurrentPosition();
+                } else if (cmd == "reset_probe") {
+                    gpilotResetProbePosition();
+                } else if (cmd == "set_home") {
+                    gpilotSetHome(
+                        obj["abs"].toBool(),
+                        obj["x"].toDouble(),
+                        obj["y"].toDouble(),
+                        obj["z"].toDouble()
+                    );
+                } else if (cmd == "set_single_limit") {
+                    //{\"axis\":2,\"cmd\":\"set_single_limit\",\"pos\":25}"
+                    gpilotSetSingleLimit(
+                        obj["axis"].toInt(),
+                        obj["pos"].toDouble()
+                    );
+                } else if (cmd == "estop") {
+                    gpilotEstop();
+                }
+            }
+        }
+    }
+
+    if (!mainSocket->bytesAvailable()) {
         return 0;
     }
 
     char c;
-    socket_->read(&c, 1);
+    mainSocket->read(&c, 1);
 
     return c;
 }
@@ -61,6 +125,27 @@ void per_tick()
         QCoreApplication::processEvents();
         if (*stopFlag_ == 2) { // 2 == stop requested
             sim.exit = sim.exit_OK;
+        }
+
+        // process control socket
+        if (controlSocket->bytesAvailable()) {
+            static QString controlBuffer = "";
+            controlBuffer += controlSocket->readAll();
+
+            while (true) {
+                if (controlBuffer.isEmpty()) {
+                    return;
+                }
+                int pos = controlBuffer.indexOf("\n");
+                if (pos == -1) {
+                    return;
+                }
+
+                QString line = controlBuffer.left(pos).trimmed();
+                controlBuffer.remove(0, pos + 1);
+
+                qDebug() << "[IO][GRBL][DLL] Control command received:" << line;
+            }
         }
     }
 }
@@ -92,10 +177,16 @@ void GRBL(QString serverName, QAtomicInt* stopFlag)
     sim.getchar = serial_in;
     sim.putchar = serial_out;
 
-    socket_ = new QLocalSocket();
-    socket_->connectToServer(serverName);
-    if (!socket_->waitForConnected(100)) {
-        qDebug() << "[IO][GRBL][DLL] Could not connect to server:" << socket_->errorString();
+    mainSocket = new QLocalSocket();
+    mainSocket->connectToServer(serverName);
+    if (!mainSocket->waitForConnected(100)) {
+        qDebug() << "[IO][GRBL][DLL] Could not connect to server main channel:" << mainSocket->errorString();
+    }
+
+    controlSocket = new QLocalSocket();
+    controlSocket->connectToServer(serverName);
+    if (!controlSocket->waitForConnected(100)) {
+        qDebug() << "[IO][GRBL][DLL] Could not connect to server control channel:" << controlSocket->errorString();
     }
 
     qDebug() << "[IO][GRBL][DLL] Connected to server, starting simulator.";
@@ -115,7 +206,8 @@ void GRBL(QString serverName, QAtomicInt* stopFlag)
     sim_loop(th);
 
     eeprom_close();
-    socket_->disconnectFromServer();
+    mainSocket->disconnectFromServer();
+    controlSocket->disconnectFromServer();
     platform_kill_thread(th);
 
     qDebug() << "[IO][GRBL][DLL] Exiting.";

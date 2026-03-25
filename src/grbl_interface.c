@@ -36,6 +36,18 @@ int block_position[N_AXIS] = {0}; //step count after most recently planned block
 uint32_t block_number = 0;
 double next_print_time;
 
+// @GPilot
+#define bit(n) (1UL << (n))
+#define EXEC_RESET              bit(5)
+
+void gpilotEstop()
+{
+    system_set_exec_state_flag(EXEC_RESET);
+    // Alarm_EStop = 10,                           //!< 10
+    system_set_exec_alarm(10);
+}
+// @GPilot
+
 static void print_steps(bool force);
 static void printBlock(void);
 
@@ -147,7 +159,7 @@ void grbl_app_exit (void)
 
 //show current position in steps
 static void print_steps (bool force)
-{ 
+{
     static plan_block_t* printed_block = NULL;
 
     plan_block_t* current_block = plan_get_current_block();
@@ -165,7 +177,7 @@ static void print_steps (bool force)
     #endif
 
     if (current_block != printed_block) {
-        //new block. 
+        //new block.
         if (block_number) //print values from the end of prev block
             fprintf(args.step_out_file, "%12.5f %d, %d, %d, %d\n", sim.sim_time, sys.position[X_AXIS], sys.position[Y_AXIS], sys.position[Z_AXIS],ocr);
 
