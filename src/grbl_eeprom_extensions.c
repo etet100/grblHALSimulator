@@ -29,32 +29,35 @@
 bool memcpy_to_eeprom(uint32_t destination, uint8_t *source, uint32_t size, bool with_checksum)
 {
     uint32_t dest = destination;
+    uint8_t *src = source;
+    uint32_t sz = size;
 
     for(; size > 0; size--)
         eeprom_put_char(dest++, *(source++));
 
-    if(size > 0 && with_checksum) {
-        uint16_t checksum = calc_checksum(source, size);
-        eeprom_put_char(destination, checksum & 0xFF);
+    if(sz > 0 && with_checksum) {
+        uint16_t checksum = calc_checksum(src, sz);
+        eeprom_put_char(dest, checksum & 0xFF);
 #if NVS_CRC_BYTES > 1
-        eeprom_put_char(++destination, checksum >> 1);
+        eeprom_put_char(dest + 1, checksum >> 8);
 #endif
     }
-    
+
     return true;
 }
 
 bool memcpy_from_eeprom(uint8_t *destination, uint32_t source, uint32_t size, bool with_checksum)
 {
-    uint8_t *dest = destination; uint32_t sz = size;
+    uint8_t *dest = destination;
+    uint32_t sz = size;
 
     for(; size > 0; size--)
         *(destination++) = eeprom_get_char(source++);
 
 #if NVS_CRC_BYTES == 1
-    return !with_checksum || calc_checksum(destination, sz) == eeprom_get_char(source);
+    return !with_checksum || calc_checksum(dest, sz) == eeprom_get_char(source);
 #else
-    return !with_checksum || calc_checksum(destination, sz) == (eeprom_get_char(source) | (eeprom_get_char(source + 1) << 8));
+    return !with_checksum || calc_checksum(dest, sz) == (eeprom_get_char(source) | (eeprom_get_char(source + 1) << 8));
 #endif
 }
 

@@ -169,4 +169,4 @@ SOURCES += \
     # src/validator.c \
     # src/validator_driver.c
 
-DESTDIR = $$OUT_PWD/../../gpilot
+DESTDIR = $$OUT_PWD/../../astrocore
